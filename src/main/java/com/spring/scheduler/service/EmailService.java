@@ -3,8 +3,12 @@ package com.spring.scheduler.service;
 import java.sql.Date;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -17,15 +21,20 @@ import com.spring.scheduler.repository.EmailLogRepository;
 import com.spring.scheduler.repository.EmailTemplateRepository;
 import com.spring.scheduler.repository.EmployeeRepository;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import jakarta.transaction.Transactional;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
 
 @Service
+@Transactional // Ensures all methods in this class are transactional
 public class EmailService {
-
-    private static final Logger logger = LoggerFactory.getLogger(EmailService.class);
+	
+	private static final Logger logger = LoggerFactory.getLogger(EmailService.class);
 
     @Autowired
     private EmployeeRepository employeeRepository;
@@ -39,49 +48,91 @@ public class EmailService {
     @Autowired
     private SendGridService sendGridService;
 
-    @Scheduled(cron = "0 0 9 * * ?")  // Runs daily at 9 AM
-    public void scheduleBirthdayEmails() {
-    	Date today = Date.valueOf(LocalDate.now());
-    	List<Employee> employees = employeeRepository.findByBirthday(today);
+    @PersistenceContext
+    private EntityManager entityManager;
 
-       
-        
-        employees.forEach(employee -> System.out.println(employee.getName()));
+    private Set<Long> usedTemplateIds = new HashSet<>();
+
+    @Scheduled(cron = "0 36 12 * * ?") // Runs daily at 9 AM
+    public void scheduleBirthdayEmails() {
+        Date today = Date.valueOf(LocalDate.now());
+        List<Employee> employees = employeeRepository.findByBirthday(today);
 
         logger.info("Scheduled task started: Sending birthday emails for {} employees", employees.size());
 
-        for (Employee employee : employees) {
+        // Send emails for each employee
+        employees.forEach(employee -> {
+            logger.info("Processing birthday email for employee: {}", employee.getEmail());
             sendBirthdayEmail(employee);
-        }
-        
+        });
+
+        // Clear the usedTemplateIds at the end of the day to reset for the next day
+        usedTemplateIds.clear();
+        logger.info("Cleared usedTemplateIds for the next day.");
         logger.info("Scheduled task completed: All birthday emails sent for the day.");
     }
 
     public void sendBirthdayEmail(Employee employee) {
-        EmailTemplate template = templateRepository.findRandomTemplate(); // Fetch a unique template each time
+        logger.info("Fetching template excluding IDs: {}", usedTemplateIds != null && !usedTemplateIds.isEmpty() ? "No exclusions" : usedTemplateIds);
 
+        // Step 1: Insert usedTemplateIds into the temp_used_template_ids table
+        if (usedTemplateIds != null && !usedTemplateIds.isEmpty()) {
+            usedTemplateIds.forEach(id -> {
+                entityManager.createNativeQuery("INSERT INTO temp_used_template_ids (id) VALUES (:id) ON CONFLICT DO NOTHING")
+                    .setParameter("id", id)
+                    .executeUpdate();
+            });
+        }
+
+        // Step 2: Fetch a random template excluding already used IDs
+        EmailTemplate template = null;
+        try {
+            template = templateRepository.findRandomTemplateExcludingTempIds();
+            logger.info("Selected Template ID: {}", template != null ? template.getId() : "No template found");
+        } catch (Exception e) {
+            logger.error("Error fetching random template: {}", e.getMessage(), e);
+        }
+
+        // Step 3: Send email if a template is found
         if (template != null) {
-            String content = String.format(template.getMessageBody(), employee.getName());
-            String subject = String.format(template.getSubject(), employee.getName()); // Replace %s with employee's name
-            boolean isSuccess = sendGridService.sendEmail(employee.getEmail(), subject, content, template.getImageUrl());
+            usedTemplateIds.add(template.getId());
+            logger.info("Selected Template ID: {}", template.getId());
 
+            String content = String.format(template.getMessageBody(), employee.getName());
+            String subject = String.format(template.getSubject(), employee.getName());
             EmailLog log = new EmailLog();
             log.setEmployeeId(employee.getId());
-            log.setStatus(isSuccess ? "success" : "failure");
-            log.setTimestamp(LocalDateTime.now());
             log.setEmailId(employee.getEmail());
-            logRepository.save(log);
-            
+            log.setTimestamp(LocalDateTime.now());
 
-            if (isSuccess) {
-                logger.info("Birthday email successfully sent to {} (ID: {})", employee.getEmail(), employee.getId());
-            } else {
-                logger.error("Failed to send email to {} (ID: {})", employee.getEmail(), employee.getId());
+            try {
+                boolean isSuccess = sendGridService.sendEmail(employee.getEmail(), subject, content, template.getImageUrl());
+                log.setStatus(isSuccess ? "success" : "failure");
+                log.setError(isSuccess ? null : "Unknown failure occurred while sending email.");
+                if (isSuccess) {
+                    logger.info("Birthday email successfully sent to {} (ID: {})", employee.getEmail(), employee.getId());
+                } else {
+                    logger.error("Failed to send email to {} (ID: {})", employee.getEmail(), employee.getId());
+                }
+            } catch (Exception e) {
+                log.setStatus("failure");
+                log.setError(e.getMessage()); // Log the error message
+                logger.error("Exception while sending email to {} (ID: {}): {}", employee.getEmail(), employee.getId(), e.getMessage(), e);
             }
+
+            // Save log to the database
+            logRepository.save(log);
+
         } else {
-            logger.warn("No email template found. Skipping email for employee: {}", employee.getEmail());
+            logger.warn("No email template found or all templates used. Skipping email for employee: {}", employee.getEmail());
         }
+
+        // Step 4: Clear the temporary table after use
+        entityManager.createNativeQuery("TRUNCATE TABLE temp_used_template_ids").executeUpdate();
     }
 
 }
+
+
+
 

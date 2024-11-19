@@ -1,5 +1,8 @@
 package com.spring.scheduler.entities;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -13,9 +16,13 @@ public class EmailTemplate {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     private String subject;
+    @Column(name = "message_body")
+    @JsonProperty("message_body")
     private String messageBody;
-    private String imageUrl;
 
+    @Column(name = "image_url")
+    @JsonProperty("image_url")
+    private String imageUrl;
     public Long getId() {
 		return id;
 	}

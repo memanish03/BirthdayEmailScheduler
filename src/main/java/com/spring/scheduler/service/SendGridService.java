@@ -15,7 +15,7 @@ import com.sendgrid.helpers.mail.objects.Email;
 @Service
 public class SendGridService {
 
-    private static final String SENDGRID_API_KEY ="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";
+    private static final String SENDGRID_API_KEY ="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";
 
     public boolean sendEmail(String to, String subject, String content, String imageUrl) {
         Email from = new Email("memanishdas@gmail.com");
