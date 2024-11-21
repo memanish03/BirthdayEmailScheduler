@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react'; 
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 import './Dashboard.css';
@@ -11,12 +11,13 @@ const Dashboard = () => {
 
     // Fetch employee data from CSV via backend
     useEffect(() => {
-        const fetchBirthdays = async () => {
+        const fetchBirthdaysByMonth = async () => {
             try {
-                const response = await fetch('http://localhost:5000/api/birthdays');
+                const month = date.getMonth() + 1; 
+                const response = await fetch(`http://localhost:7373/api/admin/getBirthdaysByMonth/${month}`);
                 const data = await response.json();
 
-                // Create a birthday map where the date is the key 
+                // Create a birthday map where the date is the key
                 const birthdayMap = {};
                 data.forEach((employee) => {
                     const [year, month, day] = employee.birthday.split('-'); 
@@ -36,8 +37,9 @@ const Dashboard = () => {
             }
         };
 
-        fetchBirthdays();
-    }, []);
+        fetchBirthdaysByMonth();
+    }, [date]);
+
 
     const handleDateChange = (selectedDate) => {
         setDate(selectedDate);
@@ -64,35 +66,39 @@ const Dashboard = () => {
     };
 
     return (
-        <div className="dashboard">
-            <h1>Birthday Dashboard</h1>
-            <Calendar
-                onClickDay={handleDateChange}
-                value={date}
-                tileClassName={tileClassName}
-            />
-            {loading ? (
-                <p>Loading birthdays...</p>
-            ) : birthdayList.length > 0 ? (
-                <div>
-                <h3>Happy Birthday to:</h3>
-                <div>
-                    {birthdayList.map((name, index) => (
-                        <div key={index}>{name}</div>
-                    ))}
-                </div>
-            </div>
-            
-            ) : (
-                <p>No birthdays today!</p>
-            )}
-            <Link to="/email-editor">
-                <button className="nav-button">Go to Email Template Editor</button>
-            </Link>
-            <Link to="/statistics">
-                <button className="nav-button">View Statistics</button>
-            </Link>
+        <div>
+            {/* Navbar */}
+            <nav className="navbar">
+                <ul className="nav-links">
+                    <li><Link to="/dashboard" className="nav-link">Dashboard</Link></li>
+                    <li><Link to="/email-editor" className="nav-link">Email Template</Link></li>
+                    <li><Link to="/statistics" className="nav-link">Statistics</Link></li>
+                </ul>
+            </nav>
 
+            {/* Main Dashboard Content */}
+            <div className="dashboard">
+                <h1>Birthday Dashboard</h1>
+                <Calendar 
+                    onClickDay={handleDateChange}
+                    value={date}
+                    tileClassName={tileClassName} 
+                />
+                {loading ? (
+                    <p>Loading birthdays...</p>
+                ) : birthdayList.length > 0 ? (
+                    <div>
+                        <h3>Happy Birthday to:</h3>
+                        <div>
+                            {birthdayList.map((name, index) => (
+                                <div key={index}>{name}</div>
+                            ))}
+                        </div>
+                    </div>
+                ) : (
+                    <p>No birthdays today!</p>
+                )}
+            </div>
         </div>
     );
 };
