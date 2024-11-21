@@ -1,143 +1,105 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import axios from "axios";
-import "./Statistics.css"; // Add a styling file to beautify the page.
+import { Link } from "react-router-dom";
+import "./Statistics.css";
 
 const Statistics = () => {
-  const [todayLogs, setTodayLogs] = useState([]);
-  const [upcomingBirthdays, setUpcomingBirthdays] = useState([]);
-  const [monthlyBirthdays, setMonthlyBirthdays] = useState([]);
-  const [allLogs, setAllLogs] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [logs, setLogs] = useState([]);
+  const [filter, setFilter] = useState("All");
 
-  // Fetch logs for emails sent today
-  const fetchTodayLogs = async () => {
-    try {
-      setLoading(true);
-      const response = await axios.get("/logs/today");
-      setTodayLogs(response.data);
-    } catch (err) {
-      setError("Error fetching today's logs.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Fetch upcoming birthdays
-  const fetchUpcomingBirthdays = async () => {
-    try {
-      setLoading(true);
-      const response = await axios.get("/birthdays/upcoming");
-      setUpcomingBirthdays(response.data);
-    } catch (err) {
-      setError("Error fetching upcoming birthdays.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Fetch birthdays for the month
-  const fetchMonthlyBirthdays = async () => {
-    try {
-      setLoading(true);
-      const response = await axios.get("/birthdays/month");
-      setMonthlyBirthdays(response.data);
-    } catch (err) {
-      setError("Error fetching monthly birthdays.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Fetch all email logs
-  const fetchAllLogs = async () => {
-    try {
-      setLoading(true);
-      const response = await axios.get("/logs/all");
-      setAllLogs(response.data);
-    } catch (err) {
-      setError("Error fetching all email logs.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Fetch all data on component mount
   useEffect(() => {
-    fetchTodayLogs();
-    fetchUpcomingBirthdays();
-    fetchMonthlyBirthdays();
-    fetchAllLogs();
+    // Fetch email logs from backend
+    axios
+      .get("http://localhost:7373/api/admin/getEmailLogs")
+      .then((response) => setLogs(response.data))
+      .catch((error) => console.log(error));
   }, []);
 
-  if (loading) return <div>Loading...</div>;
-  if (error) return <div className="error">{error}</div>;
+  const filteredLogs = logs.filter((log) => {
+    if (filter === "All") return true;
+    return log.status.toLowerCase() === filter.toLowerCase();
+  });
 
   return (
-    <div className="statistics-container">
-      <h1>Statistics</h1>
-      <section className="stats-section">
-        <h2>Emails Sent Today</h2>
-        {todayLogs.length > 0 ? (
-          <ul>
-            {todayLogs.map((log, index) => (
-              <li key={index}>
-                Email to: {log.emailId}, Status: {log.status}, Timestamp:{" "}
-                {new Date(log.timestamp).toLocaleString()}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p>No emails sent today.</p>
-        )}
-      </section>
+    <>
+      {/* Navigation Bar */}
+      <nav className="navbar">
+        <div className="navbar-container">
+          <Link to="/" className="nav-link">
+            Dashboard
+          </Link>
+          <Link to="/email-editor" className="nav-link">
+            Email Template
+          </Link>
+          <Link to="/statistics" className="nav-link active">
+            Statistics
+          </Link>
+        </div>
+      </nav>
 
-      <section className="stats-section">
-        <h2>Upcoming Birthdays</h2>
-        {upcomingBirthdays.length > 0 ? (
-          <ul>
-            {upcomingBirthdays.map((birthday, index) => (
-              <li key={index}>
-                {birthday.name} - {new Date(birthday.birthday).toLocaleDateString()}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p>No upcoming birthdays.</p>
-        )}
-      </section>
+      {/* Main Content */}
+      <div className="statistics-container">
+        <h1>Email Log Viewer</h1>
 
-      <section className="stats-section">
-        <h2>Birthdays This Month</h2>
-        {monthlyBirthdays.length > 0 ? (
-          <ul>
-            {monthlyBirthdays.map((birthday, index) => (
-              <li key={index}>
-                {birthday.name} - {new Date(birthday.birthday).toLocaleDateString()}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p>No birthdays this month.</p>
-        )}
-      </section>
+        {/* Dropdown Filter */}
+        <div className="filter-section">
+          <label htmlFor="status-filter">Filter by Status:</label>
+          <select
+            id="status-filter"
+            onChange={(e) => setFilter(e.target.value)}
+            value={filter}
+          >
+            <option value="All">All</option>
+            <option value="success">Success</option>
+            <option value="failure">Failure</option>
+          </select>
+        </div>
 
-      <section className="stats-section">
-        <h2>All Email Logs</h2>
-        {allLogs.length > 0 ? (
-          <ul>
-            {allLogs.map((log, index) => (
-              <li key={index}>
-                Email to: {log.emailId}, Status: {log.status}, Timestamp:{" "}
-                {new Date(log.timestamp).toLocaleString()}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p>No email logs available.</p>
-        )}
-      </section>
-    </div>
+        {/* Email Log Table */}
+        <div className="table-section">
+          <table className="statistics-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Employee ID</th>
+                <th>Recipient</th>
+                <th>Status</th>
+                <th>Error (if any)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredLogs.length > 0 ? (
+                filteredLogs.map((log, index) => (
+                  <tr key={index}>
+                    <td>{new Date(log.timestamp).toLocaleString()}</td>
+                    <td>{log.employeeId || "N/A"}</td>
+                    <td>{log.emailId}</td>
+                    <td>
+                      <span
+                        className={`badge ${
+                          log.status.toLowerCase() === "success"
+                            ? "bg-success"
+                            : "bg-danger"
+                        }`}
+                      >
+                        {log.status}
+                      </span>
+                    </td>
+                    <td>{log.error || "N/A"}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="5" className="no-data">
+                    No logs available.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
   );
 };
 
