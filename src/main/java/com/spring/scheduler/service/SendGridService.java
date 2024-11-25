@@ -15,7 +15,7 @@ import com.sendgrid.helpers.mail.objects.Email;
 @Service
 public class SendGridService {
 
-    private static final String SENDGRID_API_KEY ="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";
+	private static final String SENDGRID_API_KEY = System.getenv("SENDGRID_API_KEY");
 
     public boolean sendEmail(String to, String subject, String content, String imageUrl) {
         Email from = new Email("memanishdas@gmail.com");
@@ -42,7 +42,7 @@ public class SendGridService {
             request.setEndpoint("mail/send");
             request.setBody(mail.build());
             Response response = sg.api(request);
-            return response.getStatusCode() == 202; // Checks for the response code
+            return response.getStatusCode() == 202; //  response code check
         } catch (IOException ex) {
             return false;
         }
